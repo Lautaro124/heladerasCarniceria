@@ -17,11 +17,11 @@ float getTemperature();
 
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
+OneWire oneWire(oneWireBus);
 DallasTemperature sensorTemperature(&oneWire);
 FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
-OneWire oneWire(oneWireBus);
 
 void setup()
 {
@@ -65,12 +65,20 @@ void loop()
     Serial.print("\n set freeze data...");
     Firebase.setFloat(fbdo, F("/freeze"), temperature);
   }
-  delay(9000);
+  delay(5000);
 }
 
 float getTemperature()
 {
   Serial.print("\nSend comand to sensors...");
+  sensorTemperature.requestTemperatures();
+  Serial.print("\nDone!");
   float temperature = sensorTemperature.getTempCByIndex(0);
+  if (temperature != DEVICE_DISCONNECTED_C)
+  {
+    Serial.print("Temperature: ");
+    return temperature;
+  }
+  Serial.println("Error: Could not read temperature data");
   return temperature;
 }
