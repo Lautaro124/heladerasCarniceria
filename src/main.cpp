@@ -56,7 +56,7 @@ void setup()
 void loop()
 {
   float temperature = getTemperature();
-  Serial.print("Temperature: ");
+  Serial.print("\nTemperature: ");
   Serial.print(temperature);
   Serial.print("°C");
 
@@ -76,9 +76,8 @@ float getTemperature()
   float temperature = sensorTemperature.getTempCByIndex(0);
   if (temperature != DEVICE_DISCONNECTED_C)
   {
-    Serial.print("Temperature: ");
     return temperature;
   }
-  Serial.println("Error: Could not read temperature data");
+  Serial.println("\nError: Could not read temperature data");
   return temperature;
 }
