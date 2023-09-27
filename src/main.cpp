@@ -6,27 +6,22 @@
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 
-#define WIFI_SSID "WIFI GONZALEZ 2.4"
-#define WIFI_PASSWORD "GONZALEZ12"
+float getTemperature();
 
 #define API_KEY "AIzaSyCDTNU55CiT0CePtyVRIRApBO85cLrwYto"
-
-/* 3. Define the RTDB URL */
-#define DATABASE_URL "https://heladerascarniceria-default-rtdb.firebaseio.com/" //<databaseName>.firebaseio.com or <databaseName>.<region>.firebasedatabase.app
-
-/* 4. Define the user Email and password that alreadey registerd or added in your project */
+#define DATABASE_URL "https://heladerascarniceria-default-rtdb.firebaseio.com/"
 #define USER_EMAIL "admin@admin.com"
 #define USER_PASSWORD "admin1234"
+#define WIFI_PASSWORD "GONZALEZ12"
+#define WIFI_SSID "WIFI GONZALEZ 2.4"
 
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
-OneWire oneWire(oneWireBus);
 DallasTemperature sensorTemperature(&oneWire);
-FirebaseData fbdo;
 FirebaseAuth auth;
 FirebaseConfig config;
-
-float getTemperature();
+FirebaseData fbdo;
+OneWire oneWire(oneWireBus);
 
 void setup()
 {
