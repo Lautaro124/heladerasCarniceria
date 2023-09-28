@@ -5,8 +5,12 @@
 #include <FirebaseESP32.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
+#include <SPIFFS.h>
+#include <ESPAsyncWebServer.h>
+#include <DNSServer.h>
 
 float getTemperature();
+void getMemorySize();
 
 #define API_KEY "AIzaSyCDTNU55CiT0CePtyVRIRApBO85cLrwYto"
 #define DATABASE_URL "https://heladerascarniceria-default-rtdb.firebaseio.com/"
@@ -22,23 +26,45 @@ DallasTemperature sensorTemperature(&oneWire);
 FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
+AsyncWebServer server(3400);
 
 void setup()
 {
   Serial.begin(115200);
   sensorTemperature.begin();
-  Serial.print("Init");
+  Serial.print("Init\n");
+  getMemorySize();
+
+  if (!SPIFFS.begin(true))
+  {
+    Serial.println("An Error has occurred while mounting SPIFFS");
+  }
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting to Wi-Fi");
+  Serial.print("\nConnecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED)
   {
     Serial.print(".");
     delay(300);
   }
-  Serial.println();
-  Serial.print("Connected with IP: ");
+  Serial.print("\nConnected with IP: ");
   Serial.println(WiFi.localIP());
+  // ------------------------
+  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+     File file = SPIFFS.open("/index.html", "r");
+    if (!file) {
+      request->send(404, "text/plain", "Archivo no encontrado");
+      return;
+    }
+
+    String htmlContent = file.readString();
+    file.close();
+    request->send(200, "text/html", htmlContent); });
+
+  server.serveStatic("/", SPIFFS, "/");
+  server.begin();
+  //----------------------
 
   config.api_key = API_KEY;
   auth.user.email = USER_EMAIL;
@@ -80,4 +106,13 @@ float getTemperature()
   }
   Serial.println("\nError: Could not read temperature data");
   return temperature;
+}
+
+void getMemorySize()
+{
+  static const char *TAG = "Main File";
+  ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
+
+  Serial.print("\nGet memory size");
+  Serial.print(esp_get_free_internal_heap_size());
 }
