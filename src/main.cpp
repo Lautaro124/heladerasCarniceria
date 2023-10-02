@@ -11,6 +11,8 @@
 
 float getTemperature();
 void getMemorySize();
+void saveTemperatureFirebase(float temperature);
+void initPage();
 
 #define API_KEY "AIzaSyCDTNU55CiT0CePtyVRIRApBO85cLrwYto"
 #define DATABASE_URL "https://heladerascarniceria-default-rtdb.firebaseio.com/"
@@ -51,32 +53,7 @@ void setup()
   }
   Serial.print("\nConnected with IP: ");
   Serial.println(WiFi.localIP());
-
-  // ------------------------
-  if (!MDNS.begin(hostName))
-  {
-    Serial.print("Error mal configurado el DNS");
-  }
-
-  Serial.print("DNS configurado");
-  // ------------------------
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
-            {
-     File file = SPIFFS.open("/index.html", "r");
-    if (!file) {
-      request->send(404, "text/plain", "Archivo no encontrado");
-      return;
-    }
-
-    String htmlContent = file.readString();
-    file.close();
-    request->send(200, "text/html", htmlContent); });
-
-  server.serveStatic("/", SPIFFS, "/");
-  server.begin();
-
-  MDNS.addService("http", "tcp", PORT);
-  //----------------------
+  initPage();
 
   config.api_key = API_KEY;
   auth.user.email = USER_EMAIL;
@@ -97,12 +74,8 @@ void loop()
   Serial.print("\nTemperature: ");
   Serial.print(temperature);
   Serial.print("°C");
+  saveTemperatureFirebase(temperature);
 
-  if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
-  {
-    Serial.print("\n set freeze data...");
-    Firebase.setFloat(fbdo, F("/freeze"), temperature);
-  }
   delay(5000);
 }
 
@@ -127,4 +100,38 @@ void getMemorySize()
 
   Serial.print("\nGet memory size");
   Serial.print(esp_get_free_internal_heap_size());
+}
+
+void saveTemperatureFirebase(float temperature)
+{
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
+  {
+    Serial.print("\n set freeze data...");
+    Firebase.setFloat(fbdo, F("/freeze"), temperature);
+  }
+}
+
+void initPage()
+{
+  if (!MDNS.begin(hostName))
+  {
+    Serial.print("Error mal configurado el DNS");
+  }
+  Serial.print("DNS configurado");
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
+            {
+     File file = SPIFFS.open("/index.html", "r");
+    if (!file) {
+      request->send(404, "text/plain", "Archivo no encontrado");
+      return;
+    }
+
+    String htmlContent = file.readString();
+    file.close();
+    request->send(200, "text/html", htmlContent); });
+
+  server.serveStatic("/", SPIFFS, "/");
+  server.begin();
+
+  MDNS.addService("http", "tcp", PORT);
 }
