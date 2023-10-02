@@ -7,7 +7,7 @@
 #include <addons/RTDBHelper.h>
 #include <SPIFFS.h>
 #include <ESPAsyncWebServer.h>
-#include <DNSServer.h>
+#include <ESPmDNS.h>
 
 float getTemperature();
 void getMemorySize();
@@ -18,15 +18,17 @@ void getMemorySize();
 #define USER_PASSWORD "admin1234"
 #define WIFI_PASSWORD "GONZALEZ12"
 #define WIFI_SSID "WIFI GONZALEZ 2.4"
+#define PORT 80
 
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
+const char *hostName = "monitoreo";
 OneWire oneWire(oneWireBus);
 DallasTemperature sensorTemperature(&oneWire);
 FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
-AsyncWebServer server(3400);
+AsyncWebServer server(PORT);
 
 void setup()
 {
@@ -49,8 +51,16 @@ void setup()
   }
   Serial.print("\nConnected with IP: ");
   Serial.println(WiFi.localIP());
+
   // ------------------------
-  server.on("/index.html", HTTP_GET, [](AsyncWebServerRequest *request)
+  if (!MDNS.begin(hostName))
+  {
+    Serial.print("Error mal configurado el DNS");
+  }
+
+  Serial.print("DNS configurado");
+  // ------------------------
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
             {
      File file = SPIFFS.open("/index.html", "r");
     if (!file) {
@@ -64,6 +74,8 @@ void setup()
 
   server.serveStatic("/", SPIFFS, "/");
   server.begin();
+
+  MDNS.addService("http", "tcp", PORT);
   //----------------------
 
   config.api_key = API_KEY;
