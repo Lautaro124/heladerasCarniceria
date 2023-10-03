@@ -9,7 +9,7 @@
 #include <SPIFFS.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
-#include <AsyncElegantOTA.h>
+#include <ArduinoOTA.h>
 
 float getTemperature();
 void getMemorySize();
@@ -27,6 +27,11 @@ FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
 AsyncWebServer server(PORT);
+IPAddress local_IP(192, 168, 0, 180);
+IPAddress gateway(192, 168, 0, 1);
+IPAddress subnet(255, 255, 255, 0);
+IPAddress primaryDNS(8, 8, 8, 8);
+IPAddress secondaryDNS(8, 8, 4, 4);
 
 void setup()
 {
@@ -41,11 +46,13 @@ void setup()
   getMemorySize();
   wifiConnect();
   initPage();
+  ArduinoOTA.begin(WiFi.localIP(), "Arduino", "password", InternalStorage);
   initFirebase();
 }
 
 void loop()
 {
+  ArduinoOTA.handle();
   float temperature = getTemperature();
   Serial.print("\nTemperature: ");
   Serial.print(temperature);
@@ -94,7 +101,6 @@ void initPage()
   {
     Serial.print("Error mal configurado el DNS");
   }
-  Serial.print("DNS configurado");
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request)
             {
      File file = SPIFFS.open("/index.html", "r");
@@ -102,20 +108,21 @@ void initPage()
       request->send(404, "text/plain", "Archivo no encontrado");
       return;
     }
-
     String htmlContent = file.readString();
     file.close();
     request->send(200, "text/html", htmlContent); });
 
   server.serveStatic("/", SPIFFS, "/");
-  AsyncElegantOTA.begin(&server);
   server.begin();
-
   MDNS.addService("http", "tcp", PORT);
 }
 
 void wifiConnect()
 {
+  if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS))
+  {
+    Serial.println("STA Failed to configure");
+  }
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("\nConnecting to Wi-Fi");
   while (WiFi.status() != WL_CONNECTED)
