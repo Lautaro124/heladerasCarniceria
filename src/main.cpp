@@ -1,3 +1,4 @@
+#include "main.h"
 #include <Arduino.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
@@ -8,19 +9,14 @@
 #include <SPIFFS.h>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
+#include <AsyncElegantOTA.h>
 
 float getTemperature();
 void getMemorySize();
-void saveTemperatureFirebase(float temperature);
+void initFirebase();
 void initPage();
-
-#define API_KEY "AIzaSyCDTNU55CiT0CePtyVRIRApBO85cLrwYto"
-#define DATABASE_URL "https://heladerascarniceria-default-rtdb.firebaseio.com/"
-#define USER_EMAIL "admin@admin.com"
-#define USER_PASSWORD "admin1234"
-#define WIFI_PASSWORD "GONZALEZ12"
-#define WIFI_SSID "WIFI GONZALEZ 2.4"
-#define PORT 80
+void saveTemperatureFirebase(float temperature);
+void wifiConnect();
 
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
@@ -37,35 +33,15 @@ void setup()
   Serial.begin(115200);
   sensorTemperature.begin();
   Serial.print("Init\n");
-  getMemorySize();
-
   if (!SPIFFS.begin(true))
   {
     Serial.println("An Error has occurred while mounting SPIFFS");
   }
 
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("\nConnecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    Serial.print(".");
-    delay(300);
-  }
-  Serial.print("\nConnected with IP: ");
-  Serial.println(WiFi.localIP());
+  getMemorySize();
+  wifiConnect();
   initPage();
-
-  config.api_key = API_KEY;
-  auth.user.email = USER_EMAIL;
-  auth.user.password = USER_PASSWORD;
-  config.database_url = DATABASE_URL;
-
-  config.token_status_callback = tokenStatusCallback;
-  Firebase.reconnectNetwork(true);
-  fbdo.setBSSLBufferSize(4096, 1024);
-
-  Firebase.begin(&config, &auth);
-  Firebase.setDoubleDigits(5);
+  initFirebase();
 }
 
 void loop()
@@ -98,8 +74,9 @@ void getMemorySize()
   static const char *TAG = "Main File";
   ESP_LOGI(TAG, "[APP] Free memory: %d bytes", esp_get_free_heap_size());
 
-  Serial.print("\nGet memory size");
+  Serial.print("\nMemory size: ");
   Serial.print(esp_get_free_internal_heap_size());
+  Serial.print(" bytes");
 }
 
 void saveTemperatureFirebase(float temperature)
@@ -131,7 +108,36 @@ void initPage()
     request->send(200, "text/html", htmlContent); });
 
   server.serveStatic("/", SPIFFS, "/");
+  AsyncElegantOTA.begin(&server);
   server.begin();
 
   MDNS.addService("http", "tcp", PORT);
+}
+
+void wifiConnect()
+{
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("\nConnecting to Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    Serial.print(".");
+    delay(300);
+  }
+  Serial.print("\nConnected with IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void initFirebase()
+{
+  config.api_key = API_KEY;
+  auth.user.email = USER_EMAIL;
+  auth.user.password = USER_PASSWORD;
+  config.database_url = DATABASE_URL;
+
+  config.token_status_callback = tokenStatusCallback;
+  Firebase.reconnectNetwork(true);
+  fbdo.setBSSLBufferSize(4096, 1024);
+
+  Firebase.begin(&config, &auth);
+  Firebase.setDoubleDigits(5);
 }
