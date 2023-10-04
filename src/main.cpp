@@ -7,6 +7,7 @@
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 #include <SPIFFS.h>
+#include <cmath>
 #include <ESPAsyncWebServer.h>
 #include <ESPmDNS.h>
 #include <ArduinoOTA.h>
@@ -21,6 +22,7 @@ void wifiConnect();
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
 const char *hostName = "monitoreo";
+float temperatureStorage = 0.0f;
 OneWire oneWire(oneWireBus);
 DallasTemperature sensorTemperature(&oneWire);
 FirebaseAuth auth;
@@ -52,14 +54,22 @@ void setup()
 
 void loop()
 {
-  ArduinoOTA.handle();
+  ArduinoOTA.poll();
   float temperature = getTemperature();
+  Serial.print(fabs(temperature - temperatureStorage));
   Serial.print("\nTemperature: ");
   Serial.print(temperature);
   Serial.print("°C");
-  saveTemperatureFirebase(temperature);
-
-  delay(5000);
+  if (fabs(temperature - temperatureStorage) > 0.0001)
+  {
+    temperatureStorage = temperature;
+    saveTemperatureFirebase(temperature);
+    if (temperature > 30)
+    {
+      Serial.print("The temperature is to hot");
+    }
+  }
+  millis();
 }
 
 float getTemperature()
@@ -90,7 +100,7 @@ void saveTemperatureFirebase(float temperature)
 {
   if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
   {
-    Serial.print("\n set freeze data...");
+    Serial.print("\n Saving temperature in firebase...");
     Firebase.setFloat(fbdo, F("/freeze"), temperature);
   }
 }
