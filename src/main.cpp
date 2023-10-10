@@ -4,6 +4,7 @@
 #include <DallasTemperature.h>
 #include <WiFi.h>
 #include <FirebaseESP32.h>
+#include <WiFiManager.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 
@@ -26,12 +27,22 @@ FirebaseData fbdo;
 
 void setup()
 {
+  WiFi.mode(WIFI_STA);
   Serial.begin(115200);
   sensorTemperature.begin();
   Serial.print("Init\n");
 
+  WiFiManager wiFiManager;
+  wiFiManager.resetSettings();
+
+  bool res;
+  res = wiFiManager.autoConnect("AutoConnect", "12345678");
+  if (!res)
+  {
+    Serial.print("AutoConnect failed");
+  }
   getMemorySize();
-  wifiConnect();
+  // wifiConnect();
   initFirebase();
 }
 
@@ -116,12 +127,4 @@ void initFirebase()
 
   Firebase.begin(&config, &auth);
   Firebase.setDoubleDigits(5);
-}
-void wifiConnect()
-{
-  WiFiManager wifiManager;
-  wifiManager.autoConnect("ESP32-AP"); // "ESP32-AP" es el nombre del punto de acceso si no se ha configurado previamente
-
-  Serial.print("\nConnected with IP: ");
-  Serial.println(WiFi.localIP());
 }
