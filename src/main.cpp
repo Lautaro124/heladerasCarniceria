@@ -7,23 +7,24 @@
 #include <WiFiManager.h>
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
+#include <esp_task_wdt.h>
+
+const int oneWireBus = 4;
+unsigned long sendDataPrevMillis = 0;
+float temperatureStorage = 0.0f;
+unsigned long previousMillis = 0;
+const long interval = 30000;
+OneWire oneWire(oneWireBus);
+DallasTemperature sensorTemperature(&oneWire);
+FirebaseAuth auth;
+FirebaseConfig config;
+FirebaseData fbdo;
 
 float getTemperature();
 void getMemorySize();
 void initFirebase();
 void saveTemperatureFirebase(float temperature);
 void wifiConnect();
-
-const int oneWireBus = 4;
-unsigned long sendDataPrevMillis = 0;
-float temperatureStorage = 0.0f;
-unsigned long previousMillis = 0;
-const long interval = 3000;
-OneWire oneWire(oneWireBus);
-DallasTemperature sensorTemperature(&oneWire);
-FirebaseAuth auth;
-FirebaseConfig config;
-FirebaseData fbdo;
 
 void setup()
 {
@@ -32,17 +33,10 @@ void setup()
   sensorTemperature.begin();
   Serial.print("Init\n");
 
-  WiFiManager wiFiManager;
-  wiFiManager.resetSettings();
-
-  bool res;
-  res = wiFiManager.autoConnect("AutoConnect", "12345678");
-  if (!res)
-  {
-    Serial.print("AutoConnect failed");
-  }
   getMemorySize();
-  // wifiConnect();
+  wifiConnect();
+  esp_task_wdt_init(60, true);
+  esp_task_wdt_add(NULL);
   initFirebase();
 }
 
@@ -53,16 +47,24 @@ void loop()
   {
     previousMillis = currentMillis;
     float temperature = getTemperature();
-    Serial.print("\nTemperature: ");
-    Serial.print(temperature);
-    Serial.print("°C");
-    if (fabs(temperature - temperatureStorage) > 0.0001)
+    if (isnan(temperature))
     {
-      temperatureStorage = temperature;
-      saveTemperatureFirebase(temperature);
-      if (temperature > 30)
+      Serial.println("Error reading temperature.");
+      // Handle the error as needed (e.g., reset the sensor, retry, etc.).
+    }
+    else
+    {
+      Serial.print("\nTemperature: ");
+      Serial.print(temperature);
+      Serial.print("°C");
+      if (fabs(temperature - temperatureStorage) > 0.0001)
       {
-        Serial.print("The temperature is to hot");
+        temperatureStorage = temperature;
+        saveTemperatureFirebase(temperature);
+        if (temperature > 30)
+        {
+          Serial.print("The temperature is too hot");
+        }
       }
     }
   }
@@ -70,16 +72,17 @@ void loop()
 
 float getTemperature()
 {
-  Serial.print("\nSend comand to sensors...");
+  Serial.print("\nSend command to sensors...");
   sensorTemperature.requestTemperatures();
   Serial.print("\nDone!");
   float temperature = sensorTemperature.getTempCByIndex(0);
   if (temperature != DEVICE_DISCONNECTED_C)
   {
+    esp_task_wdt_reset();
     return temperature;
   }
   Serial.println("\nError: Could not read temperature data");
-  return temperature;
+  return NAN; // Return a NaN value to indicate an error.
 }
 
 void getMemorySize()
@@ -96,22 +99,33 @@ void saveTemperatureFirebase(float temperature)
 {
   if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
   {
-    Serial.print("\n Saving temperature in firebase...");
+    Serial.print("\n Saving temperature in Firebase...");
     Firebase.setFloat(fbdo, F("/freeze"), temperature);
+    if (Firebase.errorQueueCount(fbdo) > 0)
+    {
+      Serial.println("Failed to save temperature to Firebase.");
+      // Handle the failure to save to Firebase (e.g., retry, log the error, etc.).
+    }
+    esp_task_wdt_reset();
   }
 }
 
 void wifiConnect()
 {
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("\nConnecting to Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED)
+  WiFiManager wiFiManager;
+  wiFiManager.resetSettings();
+
+  bool res;
+  res = wiFiManager.autoConnect("Esp32 Wifi", "12345678");
+  if (!res)
   {
-    Serial.print(".");
-    delay(300);
+    Serial.println("AutoConnect failed");
+    // Handle the failure to connect to WiFi (e.g., retry, reset the ESP32, etc.).
   }
-  Serial.print("\nConnected with IP: ");
-  Serial.println(WiFi.localIP());
+  else
+  {
+    Serial.println("\nConnected");
+  }
 }
 
 void initFirebase()
