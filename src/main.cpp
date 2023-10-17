@@ -39,11 +39,17 @@ void setup()
   sensorTemperature.begin();
   Serial.print("Init\n");
 
+  Serial.print("Inicia aqui");
   getMemorySize();
+  Serial.print("Inicia aqui 2");
   wifiConnect();
+  Serial.print("Inicia aqui 3");
   esp_task_wdt_init(60, true);
+  Serial.print("Inicia aqui 4");
   esp_task_wdt_add(NULL);
+  Serial.print("Inicia aqui 5");
   initFirebase();
+  Serial.print("Inicia aqui 6");
 }
 
 void loop()
