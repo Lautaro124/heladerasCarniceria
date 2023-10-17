@@ -11,7 +11,6 @@
 #include <HTTPClient.h>
 
 String token = "Bearer EAAIao2QuMP4BAEg4Hs76IvHZAeBuZCYP9lCnipU1hlxDmTcw77orMZCaawAoAusMNvvDlETU5d1uxiwjvB72j2DW6UOJqxIxZCofP6apbuitVtZBjueB4HZBXZBhIY64JN75tWFVY1UQbBo9gZAZBWl776gC3khAPcgO4tiykQ1CPpZBXTBCEeRZB49dSUgZB2rYW2OYr7NWKgzEIgZDZD";
-String urlServer = "https://graph.facebook.com/v16.0/111290641852610/messages";
 String payload = "{\"messaging_product\":\"whatsapp\",\"to\":\"527121122441\",\"type\":\"text\",\"text\": {\"body\": \"Temperatura muy alta\"}}";
 
 const int oneWireBus = 4;
@@ -79,25 +78,18 @@ void loop()
 
 void sendWhatsAppMessage()
 {
-  http.begin(urlServer.c_str());
+  http.begin("https://graph.facebook.com/v16.0/111290641852610/messages");
   http.addHeader("Content-Type", "application/json");
   http.addHeader("Authorization", token);
   int httpPostCode = http.POST(payload);
   if (httpPostCode > 0)
   {
-    int httpResponseCode = http.GET();
-    if (httpResponseCode > 0)
-    {
-      Serial.print("HTTP Response code: ");
-      Serial.println(httpResponseCode);
-      String payload = http.getString();
-      Serial.println(payload);
-    }
-    else
-    {
-      Serial.print("Error code: ");
-      Serial.println(httpResponseCode);
-    }
+    Serial.println("HTTP response code: ");
+    Serial.println(String(httpPostCode));
+  }
+  else
+  {
+    Serial.print("HTTP error");
   }
   http.end();
 }
