@@ -8,6 +8,11 @@
 #include <addons/TokenHelper.h>
 #include <addons/RTDBHelper.h>
 #include <esp_task_wdt.h>
+#include <HTTPClient.h>
+
+String token = "Bearer EAAIao2QuMP4BAEg4Hs76IvHZAeBuZCYP9lCnipU1hlxDmTcw77orMZCaawAoAusMNvvDlETU5d1uxiwjvB72j2DW6UOJqxIxZCofP6apbuitVtZBjueB4HZBXZBhIY64JN75tWFVY1UQbBo9gZAZBWl776gC3khAPcgO4tiykQ1CPpZBXTBCEeRZB49dSUgZB2rYW2OYr7NWKgzEIgZDZD";
+String urlServer = "https://graph.facebook.com/v16.0/111290641852610/messages";
+String payload = "{\"messaging_product\":\"whatsapp\",\"to\":\"527121122441\",\"type\":\"text\",\"text\": {\"body\": \"Temperatura muy alta\"}}";
 
 const int oneWireBus = 4;
 unsigned long sendDataPrevMillis = 0;
@@ -16,6 +21,7 @@ unsigned long previousMillis = 0;
 const long interval = 30000;
 OneWire oneWire(oneWireBus);
 DallasTemperature sensorTemperature(&oneWire);
+HTTPClient http;
 FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
@@ -25,6 +31,7 @@ void getMemorySize();
 void initFirebase();
 void saveTemperatureFirebase(float temperature);
 void wifiConnect();
+void sendWhatsAppMessage();
 
 void setup()
 {
@@ -50,7 +57,6 @@ void loop()
     if (isnan(temperature))
     {
       Serial.println("Error reading temperature.");
-      // Handle the error as needed (e.g., reset the sensor, retry, etc.).
     }
     else
     {
@@ -64,10 +70,36 @@ void loop()
         if (temperature > 30)
         {
           Serial.print("The temperature is too hot");
+          sendWhatsAppMessage();
         }
       }
     }
   }
+}
+
+void sendWhatsAppMessage()
+{
+  http.begin(urlServer.c_str());
+  http.addHeader("Content-Type", "application/json");
+  http.addHeader("Authorization", token);
+  int httpPostCode = http.POST(payload);
+  if (httpPostCode > 0)
+  {
+    int httpResponseCode = http.GET();
+    if (httpResponseCode > 0)
+    {
+      Serial.print("HTTP Response code: ");
+      Serial.println(httpResponseCode);
+      String payload = http.getString();
+      Serial.println(payload);
+    }
+    else
+    {
+      Serial.print("Error code: ");
+      Serial.println(httpResponseCode);
+    }
+  }
+  http.end();
 }
 
 float getTemperature()
