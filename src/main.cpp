@@ -9,6 +9,8 @@
 #include <addons/RTDBHelper.h>
 #include <esp_task_wdt.h>
 #include <HTTPClient.h>
+#include <SPIFFS.h>
+#include <ArduinoJson.h>
 
 String token = "Bearer EAAIao2QuMP4BAEg4Hs76IvHZAeBuZCYP9lCnipU1hlxDmTcw77orMZCaawAoAusMNvvDlETU5d1uxiwjvB72j2DW6UOJqxIxZCofP6apbuitVtZBjueB4HZBXZBhIY64JN75tWFVY1UQbBo9gZAZBWl776gC3khAPcgO4tiykQ1CPpZBXTBCEeRZB49dSUgZB2rYW2OYr7NWKgzEIgZDZD";
 String payload = "{\"messaging_product\":\"whatsapp\",\"to\":\"527121122441\",\"type\":\"text\",\"text\": {\"body\": \"Temperatura muy alta\"}}";
@@ -24,13 +26,17 @@ HTTPClient http;
 FirebaseAuth auth;
 FirebaseConfig config;
 FirebaseData fbdo;
+bool lastInternetStatus = false;
 
 float getTemperature();
 void getMemorySize();
 void initFirebase();
 void saveTemperatureFirebase(float temperature);
 void wifiConnect();
-void sendWhatsAppMessage();
+void connectWiFi(const char *ssid, const char *password);
+void configureWiFi();
+bool checkInternetStatus();
+void updateInternetStatusFirebase(bool status);
 
 void setup()
 {
@@ -38,18 +44,36 @@ void setup()
   Serial.begin(115200);
   sensorTemperature.begin();
   Serial.print("Init\n");
-
-  Serial.print("Inicia aqui");
+  if (!SPIFFS.begin(true)) {
+    Serial.println("An error has occurred while mounting SPIFFS");
+  }
   getMemorySize();
-  Serial.print("Inicia aqui 2");
-  wifiConnect();
-  Serial.print("Inicia aqui 3");
+  
   esp_task_wdt_init(60, true);
-  Serial.print("Inicia aqui 4");
   esp_task_wdt_add(NULL);
-  Serial.print("Inicia aqui 5");
+  File configFile = SPIFFS.open("/config.json", "r");
+  if (configFile)
+  {
+    size_t size = configFile.size();
+    std::unique_ptr<char[]> buf(new char[size]);
+    configFile.readBytes(buf.get(), size);
+    configFile.close();
+
+    DynamicJsonDocument jsonDoc(1024);
+    DeserializationError error = deserializeJson(jsonDoc, buf.get());
+    if (!error)
+    {
+      const char *ssid = jsonDoc["ssid"];
+      const char *password = jsonDoc["password"];
+      
+      connectWiFi(ssid, password);
+      initFirebase();
+      return;
+    }
+  }
+
+  configureWiFi();
   initFirebase();
-  Serial.print("Inicia aqui 6");
 }
 
 void loop()
@@ -75,29 +99,38 @@ void loop()
         if (temperature > 30)
         {
           Serial.print("The temperature is too hot");
-          sendWhatsAppMessage();
         }
       }
     }
   }
+
+  // Verifica el estado de Internet y actualiza Firebase si es necesario
+  bool currentInternetStatus = checkInternetStatus();
+  if (currentInternetStatus != lastInternetStatus)
+  {
+    lastInternetStatus = currentInternetStatus;
+    updateInternetStatusFirebase(currentInternetStatus);
+  }
 }
 
-void sendWhatsAppMessage()
+bool checkInternetStatus()
 {
-  http.begin("https://graph.facebook.com/v16.0/111290641852610/messages");
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("Authorization", token);
-  int httpPostCode = http.POST(payload);
-  if (httpPostCode > 0)
+  // Verifica si hay conexión a Internet
+  return WiFi.status() == WL_CONNECTED;
+}
+
+void updateInternetStatusFirebase(bool status)
+{
+  if (Firebase.ready() && (millis() - sendDataPrevMillis > 15000 || sendDataPrevMillis == 0))
   {
-    Serial.println("HTTP response code: ");
-    Serial.println(String(httpPostCode));
+    Serial.print("\nUpdating Internet Status in Firebase...");
+    Firebase.setBool(fbdo, F("/internet_status"), status);
+    if (Firebase.errorQueueCount(fbdo) > 0)
+    {
+      Serial.println("Failed to update Internet Status in Firebase.");
+    }
+    esp_task_wdt_reset();
   }
-  else
-  {
-    Serial.print("HTTP error");
-  }
-  http.end();
 }
 
 float getTemperature()
@@ -112,7 +145,7 @@ float getTemperature()
     return temperature;
   }
   Serial.println("\nError: Could not read temperature data");
-  return NAN; // Return a NaN value to indicate an error.
+  return NAN; 
 }
 
 void getMemorySize()
@@ -134,7 +167,7 @@ void saveTemperatureFirebase(float temperature)
     if (Firebase.errorQueueCount(fbdo) > 0)
     {
       Serial.println("Failed to save temperature to Firebase.");
-      // Handle the failure to save to Firebase (e.g., retry, log the error, etc.).
+      
     }
     esp_task_wdt_reset();
   }
@@ -150,7 +183,7 @@ void wifiConnect()
   if (!res)
   {
     Serial.println("AutoConnect failed");
-    // Handle the failure to connect to WiFi (e.g., retry, reset the ESP32, etc.).
+    
   }
   else
   {
@@ -171,4 +204,44 @@ void initFirebase()
 
   Firebase.begin(&config, &auth);
   Firebase.setDoubleDigits(5);
+}
+
+void configureWiFi()
+{
+  
+  WiFiManager wifiManager;
+
+  
+  wifiManager.autoConnect("ESP32-AP");
+
+  
+  DynamicJsonDocument jsonDoc(1024);
+  jsonDoc["ssid"] = WiFi.SSID();
+  jsonDoc["password"] = WiFi.psk();
+
+  File configFile = SPIFFS.open("/config.json", "w");
+  if (configFile)
+  {
+    serializeJson(jsonDoc, configFile);
+    configFile.close();
+  }
+}
+
+void connectWiFi(const char *ssid, const char *password)
+{
+  
+  Serial.print("Conectando a: ");
+  Serial.println(ssid);
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.println("Conectando...");
+  }
+
+  Serial.println("Conexión exitosa");
+  Serial.print("Dirección IP: ");
+  Serial.println(WiFi.localIP());
 }
